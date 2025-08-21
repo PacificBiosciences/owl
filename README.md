@@ -2,9 +2,9 @@
 
 <h1 align="center"><img width="300px" src="logo/ow-logo.svg.svg"/></h1>
 
-<h1 align="center">owl</h1>
+<h1 align="center">A tool to measure and score micro-satellite instability for HiFi data.</h1>
 
-A tool to measure and score micro-satellite instability for HiFi data.
+
 
 Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso) 
 
@@ -13,7 +13,9 @@ Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://gith
 
 ### step one, profile the repeats
 ```
- owl profile --bam NA12878.haplotagged.bam --regions Simple-repeats-50k.bed --sample NA12878 > NA12878.results.txt
+gunzip data/Simple-repeats-50k.filt.bed.gz
+
+ owl profile --bam NA12878.haplotagged.bam --regions data/Simple-repeats-50k.bed --sample NA12878 > NA12878.results.txt
 ```
 
 ### step two, summarize and score sample
@@ -31,7 +33,7 @@ owl score --file NA12878.results.txt --prefix NA12878-scored
 | Motif             | Motif to search for in the reads                                        |
 | Format            | Format information per haplotype label                                  |
 
-# Format information
+## Format information
 | Field             | key | Details                                       |
 |-------------------|-----|-----------------------------------------------|
 | Haplotype         | hp  | Haplotype label from bam file (0,1,2,...)     |
