@@ -1,31 +1,55 @@
-name: Rust static build macOS and Linux
+name: Rust static build Linux
 
 on:
   workflow_dispatch:
 
-jobs:
-  build:
-    name: build for all platforms
-    runs-on: ubuntu-latest
-    env:
-      CARGO_TERM_COLOR: always
-      BINARY_NAME: echtvar
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set build version
-      id: version
-      shell: bash
-      run: |
-        VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
-        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-        echo "::notice::publish build version $VERSION"
-    - uses: actions/checkout@v2
-    - name: Build-musl macOS x86
-      uses: Shogan/rust-musl-action@v1.0.2
-      with:
-        args: cargo build --target x86_64-apple-darwin --release
-    - name: Build-musl Linux x86
-      uses: Shogan/rust-musl-action@v1.0.2
-      with:
-        args: cargo build --target x86_64-unknown-linux-musl --release
+permissions:
+  contents: write   # needed to create tags and releases
 
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: echtvar
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set build version from Cargo.toml
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(grep -m1 'version =' Cargo.toml | sed 's@version =@@' | xargs)"
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "::notice::publish build version $VERSION"
+
+      - name: Build-musl Linux x86 (static)
+        uses: Shogan/rust-musl-action@v1.0.2
+        with:
+          args: cargo build --target x86_64-unknown-linux-musl --release
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          BIN="target/x86_64-unknown-linux-musl/release/${BINARY_NAME}"
+          test -f "$BIN" || { echo "Binary not found: $BIN"; exit 1; }
+          OUT="${BINARY_NAME}-v${RELEASE_VERSION}-x86_64-unknown-linux-musl"
+          cp "$BIN" "./${OUT}"
+          chmod +x "./${OUT}"
+          tar -czf "${OUT}.tar.gz" "${OUT}"
+          sha256sum "${OUT}.tar.gz" > "${OUT}.tar.gz.sha256"
+
+      - name: Create GitHub Release (creates tag if missing)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: ${{ env.BINARY_NAME }} v${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            ${{ env.BINARY_NAME }}-v${{ env.RELEASE_VERSION }}-x86_64-unknown-linux-musl.tar.gz
+            ${{ env.BINARY_NAME }}-v${{ env.RELEASE_VERSION }}-x86_64-unknown-linux-musl.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
