@@ -1,5 +1,31 @@
-            - name: rust-static-build
-  # You may pin to the exact commit or the version.
-  # uses: gmiam/rust-musl-action@0024385032243bbdc196a1f84d1a26807e69bd29
-  uses: gmiam/rust-musl-action@v1.1.2
-          
+name: Rust static build macOS and Linux
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    name: build for all platforms
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+      BINARY_NAME: echtvar
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set build version
+      id: version
+      shell: bash
+      run: |
+        VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "::notice::publish build version $VERSION"
+    - uses: actions/checkout@v2
+    - name: Build-musl macOS x86
+      uses: Shogan/rust-musl-action@v1.0.2
+      with:
+        args: cargo build --target x86_64-apple-darwin --release
+    - name: Build-musl Linux x86
+      uses: Shogan/rust-musl-action@v1.0.2
+      with:
+        args: cargo build --target x86_64-unknown-linux-musl --release
+
