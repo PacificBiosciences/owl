@@ -2,7 +2,7 @@
 
 <h1 align="center"><img width="300px" src="logo/owl-logo.svg"/></h1>
 
-<h1 align="center">A tool to measure and score micro-satellite instability for HiFi data.</h1>
+<h1 align="center">Microsatellite instability analysis for HiFi data.</h1>
 
 
 
