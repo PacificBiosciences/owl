@@ -3,31 +3,20 @@ name: Release
 
 on:
   workflow_dispatch:
-
 env:
   CARGO_TERM_COLOR: always
-  BIN_NAME: owl
-
-permissions:
-  contents: write  # needed for pushing tags and creating releases
-
+  BUILD_TARGET: x86_64-unknown-linux-musl
+  BINARY_NAME: owl
 jobs:
   build:
-    name: Release Build
     runs-on: ubuntu-latest
-    env:
-      CARGO_TERM_COLOR: always
-      BINARY_NAME: owl
     steps:
     - uses: actions/checkout@v2
-    - name: Set build version
-      id: version
-      shell: bash
-      run: |
-        VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
-        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-        echo "::notice::publish build version $VERSION"
-    - name: Build-musl Linux x86
-      uses: Shogan/rust-musl-action@master
+    - name: Build-musl
+      uses: gmiam/rust-musl-action@master
       with:
-        args: cargo build --target x86_64-unknown-linux-musl --release
+        args: cargo build --target $BUILD_TARGET --release
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.BINARY_NAME }}
+        path: target/x86_64-unknown-linux-musl/release/${{ env.BINARY_NAME }}*
