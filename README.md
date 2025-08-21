@@ -32,7 +32,7 @@ owl score --file NA12878.results.txt --prefix NA12878-scored
 ```
 
 ## Output
-After running `owl score` there are two output files, `{prefix}.owl-motif-counts.txt` and `{prefix}.owl-scores.txt`. The scores file provides a summary score for each sample, whereas the motif file breaks down the score by motif. 
+After running `owl score` there are two output files, `{prefix}.owl-motif-counts.txt` and `{prefix}.owl-scores.txt`. The score file provides a summary MSI score for each sample, whereas the motif file breaks down the score by motif. 
 
 ### Summary score output
 | sample  | #high | #low   | %high |
