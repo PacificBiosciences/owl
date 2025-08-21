@@ -1,8 +1,8 @@
 name: Rust static build macOS and Linux
+
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+
 jobs:
   build:
     name: build for all platforms
