@@ -1,4 +1,4 @@
-# Owl
+<h1 align="center"># Owl</h1>
 
 <h1 align="center"><img width="300px" src="logo/owl-logo.svg"/></h1>
 
