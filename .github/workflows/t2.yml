@@ -1,0 +1,5 @@
+            - name: rust-static-build
+  # You may pin to the exact commit or the version.
+  # uses: gmiam/rust-musl-action@0024385032243bbdc196a1f84d1a26807e69bd29
+  uses: gmiam/rust-musl-action@v1.1.2
+          
