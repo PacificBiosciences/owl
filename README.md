@@ -1,6 +1,6 @@
 # Owl
 
-<h1 align="center"><img width="300px" src="logo/ow-logo.svg"/></h1>
+<h1 align="center"><img width="300px" src="logo/owl-logo.svg"/></h1>
 
 <h1 align="center">A tool to measure and score micro-satellite instability for HiFi data.</h1>
 
