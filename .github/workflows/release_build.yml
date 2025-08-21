@@ -6,7 +6,7 @@ on:
     types: [closed]
     branches: [main]
   push:
-    tags: [ "v*" ]        # build + publish when a v-tag is pushed
+    tags: [ "v*" ]
   workflow_dispatch:
 
 env:
@@ -14,32 +14,28 @@ env:
   BIN_NAME: owl
 
 permissions:
-  contents: read
+  contents: write  # auto_tag needs write; keep top-level write for simplicity
 
 jobs:
-  # 1) On PR merge -> create tag from Cargo.toml
   auto_tag:
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      tag: ${{ steps.mk.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Read version from Cargo.toml
         id: version
-        shell: bash
         run: |
           set -euo pipefail
           ver=$(grep -m1 -E '^\s*version\s*=\s*"' Cargo.toml | sed -E 's/.*"\s*([^"]+)\s*".*/\1/')
-          [[ -n "${ver:-}" ]] || { echo "Could not parse version"; exit 1; }
           echo "version=$ver" >> "$GITHUB_OUTPUT"
 
       - name: Fail if tag exists on remote
-        shell: bash
         run: |
           set -euo pipefail
           ver="${{ steps.version.outputs.version }}"
@@ -49,7 +45,7 @@ jobs:
           fi
 
       - name: Create and push tag
-        shell: bash
+        id: mk
         run: |
           set -euo pipefail
           ver="${{ steps.version.outputs.version }}"
@@ -57,16 +53,82 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git tag "v${ver}" "${{ github.event.pull_request.merge_commit_sha }}"
           git push origin "v${ver}"
+          echo "tag=v${ver}" >> "$GITHUB_OUTPUT"
 
-  # 2) On tag push -> build static Linux binary & publish Release
-  build_linux_musl:
-    if: startsWith(github.ref, 'refs/tags/')
+  build_linux_musl_on_merge:
+    # run in the SAME workflow after tagging on merge
+    needs: auto_tag
+    if: needs.auto_tag.outputs.tag != ''        # only when auto_tag ran
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       TARGET_TRIPLE: x86_64-unknown-linux-musl
-      # Helpful for cc/cmake-based deps; musl-tools provides musl-gcc
+      CC_x86_64_unknown_linux_musl: musl-gcc
+      CARGO_PROFILE_RELEASE_LTO: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.auto_tag.outputs.tag }}   # build the tag we just created
+          fetch-depth: 0
+
+      - name: Install musl toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools pkg-config
+
+      - name: Setup Rust (with musl target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build static release (musl)
+        run: cargo build --release --target $TARGET_TRIPLE --verbose
+
+      - name: Package tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          TARGET_DIR="target/$TARGET_TRIPLE/release"
+          OUT="${BIN_NAME}-linux-x86_64-musl.tar.gz"
+          strip "$TARGET_DIR/${BIN_NAME}" || true
+          tar -czf "$OUT" -C "$TARGET_DIR" "${BIN_NAME}"
+          echo "artifact=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.artifact }}
+          path: ${{ steps.pack.outputs.artifact }}
+          if-no-files-found: error
+
+  release_on_merge:
+    needs: build_linux_musl_on_merge
+    if: needs.auto_tag.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.auto_tag.outputs.tag }}
+          files: dist/**
+          generate_release_notes: true
+
+  # still support manual/handmade tag pushes
+  build_linux_musl_on_tag:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      TARGET_TRIPLE: x86_64-unknown-linux-musl
       CC_x86_64_unknown_linux_musl: musl-gcc
       CARGO_PROFILE_RELEASE_LTO: true
     steps:
@@ -90,12 +152,10 @@ jobs:
 
       - name: Package tarball
         id: pack
-        shell: bash
         run: |
           set -euo pipefail
           TARGET_DIR="target/$TARGET_TRIPLE/release"
           OUT="${BIN_NAME}-linux-x86_64-musl.tar.gz"
-          # strip may be from binutils; use || true in case symbols are needed
           strip "$TARGET_DIR/${BIN_NAME}" || true
           tar -czf "$OUT" -C "$TARGET_DIR" "${BIN_NAME}"
           echo "artifact=$OUT" >> "$GITHUB_OUTPUT"
@@ -107,9 +167,9 @@ jobs:
           path: ${{ steps.pack.outputs.artifact }}
           if-no-files-found: error
 
-  release:
+  release_on_tag:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build_linux_musl
+    needs: build_linux_musl_on_tag
     runs-on: ubuntu-latest
     permissions:
       contents: write
