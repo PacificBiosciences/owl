@@ -27,11 +27,6 @@ jobs:
         VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
         echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
         echo "::notice::publish build version $VERSION"
-    - uses: actions/checkout@v2
-    - name: Build-musl macOS x86
-      uses: Shogan/rust-musl-action@v1.0.2
-      with:
-        args: cargo build --target x86_64-apple-darwin --release
     - name: Build-musl Linux x86
       uses: Shogan/rust-musl-action@v1.0.2
       with:
