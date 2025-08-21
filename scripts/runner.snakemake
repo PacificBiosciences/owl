@@ -1,0 +1,39 @@
+configfile: "samples.json"
+
+SAMPLES = list(config["samples"].keys())
+REGIONS = 
+
+def _get_fn(wildcards):
+    return config["samples"][wildcards.sample]
+
+rule all:
+    input:
+        scores=expand( "{sample}.owl-scores.txt", sample=SAMPLES),
+        merge="merged-results.txt"
+
+rule merge:
+     input: expand( "{sample}.owl.txt", sample=SAMPLES)
+     output: "merged-results.txt"
+     shell:
+            """
+             owl merge --files {input} > {output}
+            """
+
+rule score:
+     input:  "{sample}.owl.txt"
+     output: "{sample}.owl-scores.txt"
+     shell:
+            """
+             owl score --unphased --prefix {wildcards.sample} --file {input} 
+            """
+
+rule run_profile:
+    input:
+        bam=_get_fn,
+	regions=REGIONS
+    output:
+        "{sample}.owl.txt"
+    shell:
+        """
+         owl profile --regions {input.regions}  --bam {input} --sample {wildcards.sample} > {output}
+        """

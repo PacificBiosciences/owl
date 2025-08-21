@@ -1,0 +1,33 @@
+[package]
+name = "owl"
+version = "0.1.1"
+authors = [ "Zev Kronenberg", "Khi Pin Chua", "Egor Dolzhenko", "Mark Chaisson"]
+description = "MSI utils"
+edition = "2021"
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "owl"
+path = "src/bin/owl.rs"
+
+[dependencies]
+clap = { version = "*", features = ["derive"] }
+flate2 = "1"
+slurp = "1.0.1"
+csv = "1.1"
+rust-htslib = { version = "0.49.0", default-features = false }
+bio = "0.42"
+log = "0.4.20"
+env_logger = "0.10.1"
+regex = "1"
+spoa = "0.1.1"
+rayon = "1.8"
+rand = "0.8"
+intervaltree = "0.2.7"
+statrs = "0.16"
+indicatif = "0.17"
+sysinfo = "0.30"
+assert_float_eq = "1.1.4"
+chrono = "0.4"
