@@ -1,0 +1,86 @@
+name: Test static musl build (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      features:
+        description: "cargo features (space- or comma-separated)"
+        required: false
+        default: ""
+      upload_artifact:
+        description: "Upload built binary as artifact?"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN_NAME: owl
+  TARGET_TRIPLE: x86_64-unknown-linux-musl
+  CC_x86_64_unknown_linux_musl: musl-gcc
+  CARGO_PROFILE_RELEASE_LTO: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-static-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install musl toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools pkg-config
+
+      - name: Setup Rust (with musl target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET_TRIPLE }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build static binary (musl)
+        env:
+          FEATURES: ${{ github.event.inputs.features }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FEATURES:-}" ]; then
+            cargo build --release --target "$TARGET_TRIPLE" --features "$FEATURES" --verbose
+          else
+            cargo build --release --target "$TARGET_TRIPLE" --verbose
+          fi
+
+      - name: Verify binary exists
+        run: |
+          ls -lah "target/$TARGET_TRIPLE/release/${BIN_NAME}"
+
+      - name: Verify static linking
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="target/$TARGET_TRIPLE/release/${BIN_NAME}"
+          echo "file(1):"
+          file "$BIN"
+          file "$BIN" | grep -qi 'statically linked'
+          echo
+          echo "ldd:"
+          ldd "$BIN" 2>&1 | grep -qi 'not a dynamic executable'
+          echo
+          echo "readelf program headers (no INTERP expected):"
+          ! readelf -l "$BIN" | grep -q 'INTERP'
+
+      - name: Smoke test (--version)
+        run: |
+          "target/$TARGET_TRIPLE/release/${BIN_NAME}" --version || true
+
+      - name: Upload artifact
+        if: ${{ fromJSON(github.event.inputs.upload_artifact || 'false') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-${{ env.TARGET_TRIPLE }}-static
+          path: target/${{ env.TARGET_TRIPLE }}/release/${{ env.BIN_NAME }}
+          if-no-files-found: error
