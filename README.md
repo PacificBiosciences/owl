@@ -13,8 +13,10 @@ Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://gith
 
 ### step one, profile the repeats
 ```
-gunzip data/Simple-repeats-50k.filt.bed.gz
+ #decompress default simple repeat catalog.
+ gunzip data/Simple-repeats-50k.filt.bed.gz
 
+ #profile the repeats
  owl profile --bam NA12878.haplotagged.bam --regions data/Simple-repeats-50k.bed --sample NA12878 > NA12878.results.txt
 ```
 
@@ -65,3 +67,8 @@ owl score --file NA12878.results.txt --prefix NA12878-scored
  bedtools subtract -A -a Simple-repeats-50k.bed -b GRCh38.segdups.bed.gz > Simple-repeats-50k.filt.bed
 
 ```
+
+## Changelog 
+
+* v0.1.1 -- August 21
+  - initial release to github
