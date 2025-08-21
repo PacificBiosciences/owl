@@ -53,7 +53,7 @@ The motif file contains the same information, but summarizes the same informatio
 
 ## Changelog 
 
-* v0.1.1 -- August 21 2025
+* v0.1.2 -- August 21 2025
   - initial release to github
 
 ## Questions, Comments, Feedback:
