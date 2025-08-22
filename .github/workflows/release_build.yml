@@ -3,19 +3,31 @@ name: Release
 
 on:
   workflow_dispatch:
+
 env:
   CARGO_TERM_COLOR: always
-  BUILD_TARGET: x86_64-unknown-linux-musl
-  BINARY_NAME: owl
+  BIN_NAME: owl
+
+permissions:
+  contents: write  # needed for pushing tags and creating releases
+
 jobs:
   build:
-
+    name: Release Build
     runs-on: ubuntu-latest
-
+    env:
+      CARGO_TERM_COLOR: always
+      BINARY_NAME: owl
     steps:
     - uses: actions/checkout@v2
-      
-    - name: Build static
-      uses:  stevenleadbeater/rust-musl-builder@master
+    - name: Set build version
+      id: version
+      shell: bash
+      run: |
+        VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "::notice::publish build version $VERSION"
+    - name: Build-musl Linux x86
+      uses: Shogan/rust-musl-action@master
       with:
-          args: /bin/bash -c "cargo build --release --target=x86_64-unknown-linux-musl"
+        args: cargo build --target x86_64-unknown-linux-musl --release
