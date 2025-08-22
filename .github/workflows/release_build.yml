@@ -26,17 +26,3 @@ jobs:
           echo "::notice::Release version $VERSION"
 
       - name: Add MUSL target
-        run: rustup target add x86_64-unknown-linux-musl
-
-      - name: Build (x86_64-unknown-linux-musl)
-        run: cargo build --release --target x86_64-unknown-linux-musl
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/x86_64-unknown-linux-musl/release/${{ env.BIN_NAME }}
-          asset_name: ${{ env.BIN_NAME }}
-          tag: ${{ env.TAG }}
-          overwrite: true
-          body: "For release notes, check the changelog in the repo README.md."
