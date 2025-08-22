@@ -25,11 +25,7 @@ jobs:
       # and emits a notice with the detected version.
         shell: bash
         run: |
-          VERSION="$(grep -E '^[[:space:]]*version[[:space:]]*=' config.toml | head -n1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/')"
-          if [ -z "$VERSION" ]; then
-            echo "Failed to parse version from config.toml" >&2
-            exit 1
-          fi
+          VERSION="$(cat Cargo.toml | grep 'version =' -m 1 | sed 's@version =@@' | xargs)"
           echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
           echo "TAG=v$VERSION" >> $GITHUB_ENV
           echo "::notice::Release version $VERSION"
