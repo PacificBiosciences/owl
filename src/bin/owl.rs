@@ -654,7 +654,7 @@ fn run_merge(args: MergeArgs) {
         info!(
             "Merge completed in {:.2?}, memory used: {:.2} MB",
             duration,
-            mem_kb as f64 / 1024.0
+            mem_kb as f64 / (1024.0 * 1024.0)
         );
     } else {
         info!("Merge completed in {:.2?}, memory usage unknown", duration);
@@ -783,7 +783,7 @@ fn run_score(args: ScoreArgs) {
         info!(
             "Score completed in {:.2?}, memory used: {:.2} MB",
             duration,
-            mem_kb as f64 / 1024.0
+            mem_kb as f64 / (1024.0 * 1024.0)
         );
     } else {
         info!("Score completed in {:.2?}, memory usage unknown", duration);
