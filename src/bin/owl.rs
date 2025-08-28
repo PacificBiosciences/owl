@@ -142,6 +142,10 @@ struct ScoreArgs {
     #[arg(short, long, required = true)]
     prefix: String,
 
+    /// Min percentage sites for QC
+    #[arg(short, long, default_value_t = 50.0)]
+    min_pass: f32,
+
     /// Verbosity
     #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, default_value_t = 0)]
     verbosity: u8,
@@ -688,11 +692,12 @@ fn run_score(args: ScoreArgs) {
         .open(output_motifs)
         .unwrap();
 
+    // NOTE: extended header with per-sample passing stats
     output_scores_fh
-        .write(b"#sample\t#high\t#low\t%high\n")
+        .write_all(b"#sample\t#high\t#low\t%high\t#sites\t#passing\t%passing\tqc\n")
         .unwrap();
     output_motif_fh
-        .write(b"motif\t#high\t#low\t%high\n")
+        .write_all(b"motif\t#high\t#low\t%high\n")
         .unwrap();
 
     env_logger::builder()
@@ -703,8 +708,13 @@ fn run_score(args: ScoreArgs) {
     let start_time = Instant::now();
     let records = parse_custom_file_iter(&args.file).unwrap();
 
-    // Store running totals per sample
-    let mut sd_counts: HashMap<String, (usize, usize)> = HashMap::new(); // (gt2, le2)
+    // Per-sample high/low (existing)
+    let mut sd_counts: HashMap<String, (usize, usize)> = HashMap::new(); // (hi, lo)
+
+    // NEW: per-sample site totals and passing-site counts
+    let mut sample_site_counts: HashMap<String, (usize, usize)> = HashMap::new(); // (total_sites, passing_sites)
+
+    // Per-motif counts (global)
     let mut motif_counts: HashMap<String, (usize, usize)> = HashMap::new();
 
     let mut keepers = HashSet::new();
@@ -714,27 +724,32 @@ fn run_score(args: ScoreArgs) {
 
     for record_results in records {
         let record = record_results.unwrap();
+
         for (sample_name, alleles) in record.all_samples() {
             if !keepers.is_empty() && !keepers.contains(sample_name) {
                 continue;
             }
 
             let entry = sd_counts.entry(sample_name.clone()).or_insert((0, 0));
+            let mut site_passed = false; // did ANY allele pass at this site for this sample?
+
+            // motif counts bucket for this site (global across samples)
             let motifc = motif_counts.entry(record.motif.clone()).or_insert((0, 0));
+
             for allele in alleles {
                 if allele.count < args.min_depth || (allele.haplotype == 0 && !args.unphased) {
                     continue;
                 }
+                site_passed = true;
 
                 if allele.cov >= args.cov {
-                    entry.0 += 1;
+                    entry.0 += 1; // hi
                     motifc.0 += 1;
                 } else {
-                    entry.1 += 1;
+                    entry.1 += 1; // lo
                     motifc.1 += 1;
                 }
 
-                // Optional: print per-allele info
                 debug!(
                     "{}\t{}\t{}\t{}\t{}\t{}\t{:?}",
                     record.region,
@@ -746,24 +761,57 @@ fn run_score(args: ScoreArgs) {
                     allele.lengths
                 );
             }
+
+            // Update per-sample site counters
+            let site_entry = sample_site_counts
+                .entry(sample_name.clone())
+                .or_insert((0, 0));
+            site_entry.0 += 1; // saw this site for this sample
+            if site_passed {
+                site_entry.1 += 1; // at least one allele passed
+            }
         }
     }
 
+    // Stable output order by sample name
     let mut sorted_samples: Vec<_> = sd_counts.iter().collect();
     sorted_samples.sort_by_key(|(sample_name, _)| *sample_name);
 
-    for (sample_name, (gt2, le2)) in sorted_samples {
-        let frac = if *le2 > 0 {
-            *gt2 as f64 / (*gt2 as f64 + *le2 as f64)
+    for (sample_name, (hi, lo)) in sorted_samples {
+        let denom_hilo = *hi + *lo;
+        let pct_high = if denom_hilo > 0 {
+            100.0 * (*hi as f64 / denom_hilo as f64)
         } else {
             0.0
         };
 
-        output_scores_fh
-            .write(format!("{}\t{}\t{}\t{:.3}\n", sample_name, gt2, le2, frac * 100.0).as_bytes())
-            .unwrap();
+        let (sites_total, sites_pass) = sample_site_counts
+            .get(sample_name)
+            .copied()
+            .unwrap_or((0, 0));
+
+        // "If none are passing the value is zero"
+        let pct_pass = if sites_total == 0 || sites_pass == 0 {
+            0.0
+        } else {
+            100.0 * (sites_pass as f64 / sites_total as f64)
+        };
+
+        let qc = if pct_pass < args.min_pass as f64 {
+            "fail"
+        } else {
+            "pass"
+        };
+
+        writeln!(
+            output_scores_fh,
+            "{}\t{}\t{}\t{:.2}\t{}\t{}\t{:.2}\t{}",
+            sample_name, hi, lo, pct_high, sites_total, sites_pass, pct_pass, qc
+        )
+        .unwrap();
     }
 
+    // Motif summary (global)
     for (motif, (hi, lo)) in motif_counts {
         let total = hi + lo;
         let pct = if total == 0 {
@@ -779,7 +827,7 @@ fn run_score(args: ScoreArgs) {
     sys.refresh_processes();
 
     if let Some(proc) = sys.process(sysinfo::get_current_pid().unwrap()) {
-        let mem_kb = proc.memory(); // in kilobytes
+        let mem_kb = proc.memory(); // kilobytes
         info!(
             "Score completed in {:.2?}, memory used: {:.2} MB",
             duration,

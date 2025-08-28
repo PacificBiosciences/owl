@@ -34,13 +34,13 @@ owl score --file NA12878.results.txt --prefix NA12878-scored
 ## Output
 After running `owl score` there are two output files, `{prefix}.owl-motif-counts.txt` and `{prefix}.owl-scores.txt`. The score file provides a summary MSI score for each sample, whereas the motif file breaks down the score by motif. 
 
-### Summary score output
-| sample  | #high | #low   | %high |
-|---------|------|-------|-------|
-| NA12878 | 1868 | 72231 | 2.521 |
-|   ...   |  ... | ...   | ...   |
+| sample                     | #high |  #low | %high | #sites | #passing | %passing | qc   |
+| -------------------------- | ----: | ----: | ----: | -----: | -------: | -------: | :--- |
+| NA12878 |  1868 | 72231 |  2.52 |  47228 |    37844 |    80.13 | pass |
+| …                          |     … |     … |     … |      … |        … |        … | …    |
 
-The high and low counts are the number of loci that have a high coefficient of variance, the main measure of MSI.
+
+High and low are counts of loci with high vs. low coefficient of variation (CV). %high is the proportion of loci with high CV (our primary MSI metric). QC reflects data completeness: it reports the percentage of sites with reliable measurements (%passing), and the qc column labels each sample pass or fail based on that percentage.
 
 ### Summary of motif output
 | motif  | #high | #low | %high |
@@ -53,6 +53,8 @@ The motif file contains the same information, but summarizes the same informatio
 
 ## Changelog 
 
+* v0.2.0 -- August 28 2025
+  - Add QC metric to reporting
 * v0.1.3 -- August 26 2025
   - fix memory reporting bug
 * v0.1.2 -- August 21 2025
