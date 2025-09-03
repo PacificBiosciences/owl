@@ -398,13 +398,9 @@ fn gen_header() -> String {
         "##FORMAT=<ID=CT,Number=1,Type=Integer,Description=\"number of reads, post filters\">\n"
     ));
     header.push_str(&format!(
-        "##FORMAT=<ID=CT,Number=1,Type=Integer,Description=\"number of reads, post filters\">\n"
-    ));
-    header.push_str(&format!(
         "##FORMAT=<ID=MU,Number=1,Type=Float,Description=\"mean repeat length\">\n"
     ));
     header.push_str(&format!("##FORMAT=<ID=CV,Number=1,Type=Float,Description=\"coefficent of variance on repeat length\">\n"));
-
     header.push_str(&format!(
         "##FORMAT=<ID=LN,Number=.,Type=Int,Description=\"lengths of repeats\">\n"
     ));

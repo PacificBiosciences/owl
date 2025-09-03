@@ -53,6 +53,8 @@ The motif file contains the same information, but summarizes the same informatio
 
 ## Changelog 
 
+* v0.2.1 -- Sept 3 2025
+  - Fix duplicate header field
 * v0.2.0 -- August 28 2025
   - Add QC metric to reporting
 * v0.1.3 -- August 26 2025
