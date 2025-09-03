@@ -24,7 +24,7 @@ rule score:
      output: "{sample}.owl-scores.txt"
      shell:
             """
-             owl score --unphased --prefix {wildcards.sample} --file {input} 
+             owl score --prefix {wildcards.sample} --file {input} 
             """
 
 rule run_profile:
