@@ -130,7 +130,7 @@ struct ScoreArgs {
     #[arg(short, long, default_value_t = 5.0)]
     cov: f32,
 
-    /// Include unphased reads
+    /// Exclude unphased reads
     #[arg(short, long)]
     unphased: bool,
 
@@ -431,7 +431,7 @@ fn run_profile(args: ProfileArgs) {
         None => samples = get_sample_names(&args.bam),
     }
 
-    let mut reader = IndexedReader::from_path(args.bam).unwrap();
+    let mut reader = IndexedReader::from_path(args.bam).expect("Failed to open BAM file");
 
     let mut ok_regions = 0;
     let mut bad_regions = 0;
@@ -441,6 +441,9 @@ fn run_profile(args: ProfileArgs) {
     println!("#Region\tlen\tmotif\tformat\t{}", samples.join(","));
 
     let pb = ProgressBar::new(regions.len() as u64);
+
+    let mut total_phased = 0;
+    let mut total_unphased = 0;
 
     for r in regions {
         region_count += 1;
@@ -560,13 +563,25 @@ fn run_profile(args: ProfileArgs) {
             joined
         );
         ok_regions += 1;
+        if hap_info.len() > 1 {
+            total_phased += 1;
+        } else {
+            total_unphased += 1;
+        }
     }
     log::info!(
-        "Passing region count: {}, Filtered region count: {}, Total region count {}",
+        "Passing region count: {}, Filtered region count: {}, Phased/unphased: {}/{}, Total region count: {}",
         ok_regions,
         bad_regions,
+        total_phased,
+        total_unphased,
         region_count,
     );
+
+    if total_phased == 0 {
+        log::warn!("No phased regions profiled, ensure the BAM file was phased.")
+    }
+
     let duration = start_time.elapsed();
     let mut sys = SysInfoSystem::new_all();
     sys.refresh_processes();
@@ -690,7 +705,9 @@ fn run_score(args: ScoreArgs) {
 
     // NOTE: extended header with per-sample passing stats
     output_scores_fh
-        .write_all(b"#sample\t#high\t#low\t%high\t#sites\t#passing\t%passing\tqc\n")
+        .write_all(
+            b"#sample\t#high\t#low\t%high\t#phased\t%phased\t#sites\t#passing\t%passing\tqc\n",
+        )
         .unwrap();
     output_motif_fh
         .write_all(b"motif\t#high\t#low\t%high\n")
@@ -708,7 +725,7 @@ fn run_score(args: ScoreArgs) {
     let mut sd_counts: HashMap<String, (usize, usize)> = HashMap::new(); // (hi, lo)
 
     // NEW: per-sample site totals and passing-site counts
-    let mut sample_site_counts: HashMap<String, (usize, usize)> = HashMap::new(); // (total_sites, passing_sites)
+    let mut sample_site_counts: HashMap<String, (usize, usize, usize)> = HashMap::new(); // (total_sites, passing_sites)
 
     // Per-motif counts (global)
     let mut motif_counts: HashMap<String, (usize, usize)> = HashMap::new();
@@ -728,12 +745,24 @@ fn run_score(args: ScoreArgs) {
 
             let entry = sd_counts.entry(sample_name.clone()).or_insert((0, 0));
             let mut site_passed = false; // did ANY allele pass at this site for this sample?
+            let mut site_phased = false;
 
             // motif counts bucket for this site (global across samples)
             let motifc = motif_counts.entry(record.motif.clone()).or_insert((0, 0));
 
+            if alleles.len() > 1 {
+                site_phased = true;
+            }
+
             for allele in alleles {
-                if allele.count < args.min_depth || (allele.haplotype == 0 && !args.unphased) {
+                // 1. If the haplotype has low read depth, skip
+                // 2. If the haplotype is unphased (0) and skipping unphased
+                // 3. If the haplotype is unphased, but there are other haplotypes (phased), skip
+
+                if allele.count < args.min_depth
+                    || (allele.haplotype == 0 && args.unphased)
+                    || alleles.len() > 1 && allele.haplotype == 0
+                {
                     continue;
                 }
                 site_passed = true;
@@ -761,10 +790,13 @@ fn run_score(args: ScoreArgs) {
             // Update per-sample site counters
             let site_entry = sample_site_counts
                 .entry(sample_name.clone())
-                .or_insert((0, 0));
+                .or_insert((0, 0, 0));
             site_entry.0 += 1; // saw this site for this sample
             if site_passed {
                 site_entry.1 += 1; // at least one allele passed
+            }
+            if site_phased {
+                site_entry.2 += 1;
             }
         }
     }
@@ -781,16 +813,23 @@ fn run_score(args: ScoreArgs) {
             0.0
         };
 
-        let (sites_total, sites_pass) = sample_site_counts
+        let (sites_total, sites_pass, sites_phased) = sample_site_counts
             .get(sample_name)
             .copied()
-            .unwrap_or((0, 0));
+            .unwrap_or((0, 0, 0));
 
         // "If none are passing the value is zero"
         let pct_pass = if sites_total == 0 || sites_pass == 0 {
             0.0
         } else {
             100.0 * (sites_pass as f64 / sites_total as f64)
+        };
+
+        // "If none are passing the value is zero"
+        let pct_phase = if sites_total == 0 || sites_phased == 0 {
+            0.0
+        } else {
+            100.0 * (sites_phased as f64 / sites_total as f64)
         };
 
         let qc = if pct_pass < args.min_pass as f64 {
@@ -801,8 +840,17 @@ fn run_score(args: ScoreArgs) {
 
         writeln!(
             output_scores_fh,
-            "{}\t{}\t{}\t{:.2}\t{}\t{}\t{:.2}\t{}",
-            sample_name, hi, lo, pct_high, sites_total, sites_pass, pct_pass, qc
+            "{}\t{}\t{}\t{:.2}\t{}\t{:.2}\t{}\t{}\t{:.2}\t{}",
+            sample_name,
+            hi,
+            lo,
+            pct_high,
+            sites_phased,
+            pct_phase,
+            sites_total,
+            sites_pass,
+            pct_pass,
+            qc
         )
         .unwrap();
     }
