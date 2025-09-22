@@ -58,7 +58,7 @@ The motif file contains the same information, but summarizes the same informatio
 ## Changelog 
 * v0.3.0 -- Sept 22 2025
   - Support bgzip bed files
-  - Warn if `owl profile` does encounter a phased region.
+  - Warn if `owl profile` does not encounter a phased region.
   - Switch polarity of un-phased read filter, keep unphased reads unless region contains phased reads.
   - Update score report to include phasing information.
   - Fix panic on bam open.
