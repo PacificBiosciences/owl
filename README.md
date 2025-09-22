@@ -52,7 +52,7 @@ High and low are counts of haplotypes (multiple per loci) with high vs. low coef
 | TAGGAC | 0    | 0   | 0.00  |
 | ... | ...    | ...   | ...  |
 
-The motif file contains the same information, but summarizes the same information across motifs. If multiple samples are scored together, the motif stats 
+The motif file contains the same information, but summarizes the information across motifs. If multiple samples are scored together, the motif stats are merged.
 
 
 ## Changelog 
