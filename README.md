@@ -14,15 +14,20 @@ Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://gith
  cargo build --release
 ```
 
+## Requirements 
+
+For best results please ensure that your HiFi reads are phased with [HiPhase](https://github.com/PacificBiosciences/HiPhase), or [WhatsHap](https://whatshap.readthedocs.io/en/latest/). The code will *only warn* if phasing is missing. Un-phased data/loci will result in falsely elevated levels of MSI. 
+
 ## Running
+
+Owl is provided as a stand alone tool and integrated into the [HiFi Somatic Workflow](https://github.com/PacificBiosciences/HiFi-somatic-WDL). For a more comprehensive cancer analysis use the *HiFi Somatic Workflow*.
+
+## Command line stand alone steps:
 
 ### step one, profile the repeats
 ```
- # decompress default simple repeat catalog.
- gunzip data/Simple-repeats-50k.filt.bed.gz
-
  # profile the repeats.
- owl profile --bam NA12878.haplotagged.bam --regions data/Simple-repeats-50k.bed --sample NA12878 > NA12878.results.txt
+ owl profile --bam NA12878.haplotagged.bam --regions data/Simple-repeats-50k.bed.gz --sample NA12878 > NA12878.results.txt
 ```
 
 ### step two, summarize and score sample(s)
