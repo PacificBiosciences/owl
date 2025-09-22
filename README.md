@@ -61,15 +61,15 @@ The motif file contains the same information, but summarizes the same informatio
   - Warn if `owl profile` does not encounter a phased region.
   - Switch polarity of un-phased read filter, keep unphased reads unless region contains phased reads.
   - Update score report to include phasing information.
-  - Fix panic on bam open.
+  - Fix panic on failed BAM open.
 * v0.2.1 -- Sept 3 2025
   - Fix duplicate header field
 * v0.2.0 -- August 28 2025
   - Add QC metric to reporting
 * v0.1.3 -- August 26 2025
-  - fix memory reporting bug
+  - Fix memory reporting bug
 * v0.1.2 -- August 21 2025
-  - initial release to github
+  - Initial release to github
 
 ## Questions, Comments, Feedback:
 Please feel free to file a ticket at:
