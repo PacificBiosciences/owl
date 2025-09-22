@@ -1,7 +1,8 @@
+use flate2::read::MultiGzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-
+use std::io::{self, BufRead, BufReader, Read};
+use std::path::Path;
 /// Underlines a span of the input string using ANSI escape codes.
 /// Returns a new `String` with the underlined range.
 ///
@@ -25,16 +26,41 @@ fn clean_motif(raw: &str) -> String {
     raw.trim_matches(|c| c == '(' || c == ')' || c == 'n')
         .to_string()
 }
+/// Open a reader that supports plain text or bgzip/gzip (.bgz/.bgzip/.gz).
+/// If `path` is "-" we read from stdin.
+fn open_text_or_bgzip(path: &str) -> io::Result<Box<dyn Read>> {
+    if path == "-" {
+        return Ok(Box::new(io::stdin()));
+    }
+
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase());
+
+    match ext.as_deref() {
+        Some("gz") | Some("bgz") | Some("bgzip") => {
+            let f = File::open(path)?;
+            Ok(Box::new(MultiGzDecoder::new(f)))
+        }
+        _ => Ok(Box::new(File::open(path)?)),
+    }
+}
 
 /// Parses the repeat file and returns a Vec of (region_string, motif)
+/// Supports plain text and bgzip/gzip-compressed input.
 pub fn parse_repeat_file(path: &str) -> io::Result<Vec<(String, String)>> {
-    let reader = BufReader::new(File::open(path)?);
+    let reader = BufReader::new(open_text_or_bgzip(path)?);
     let mut results = Vec::new();
 
-    for line in reader.lines() {
-        let line = line?;
-        let fields: Vec<&str> = line.split('\t').collect();
+    for line_res in reader.lines() {
+        let line = line_res?;
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
 
+        let fields: Vec<&str> = line.split('\t').collect();
         if fields.len() != 4 {
             eprintln!("Skipping malformed line: {line}");
             continue;
