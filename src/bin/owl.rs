@@ -60,11 +60,11 @@ struct ProfileArgs {
     #[arg(short, long)]
     bam: String,
 
-    /// Genomic region to extract (e.g., chr:start-end)
+    /// Genomic region(s) to score for MSI (bed format with motif)
     #[arg(short, long)]
     regions: String,
 
-    /// Overwrite sample name, SM bam tag is used by default.
+    /// Sample name, SM bam tag is default.
     #[arg(short, long)]
     sample: Option<String>,
 
@@ -76,15 +76,15 @@ struct ProfileArgs {
     #[arg(short, long, default_value_t = 0.98)]
     min_mg: f32,
 
-    /// Max Fraction of Filtered Reads
+    /// Max fraction of filtered reads
     #[arg(short, long, default_value_t = 0.2)]
     max_filt_frac: f64,
 
-    /// Min Coverage
+    /// Min coverage
     #[arg(short, long, default_value_t = 5)]
     min_cov: i32,
 
-    /// Min MapQ
+    /// Min mapQ
     #[arg(short, long, default_value_t = 10)]
     min_mapq: u8,
 
@@ -126,7 +126,7 @@ struct ScoreArgs {
     #[arg(short, long, default_value_t = 5)]
     min_depth: u32,
 
-    /// Coefficient of Variance cutoff
+    /// Coefficient of variance cutoff
     #[arg(short, long, default_value_t = 5.0)]
     cov: f32,
 
