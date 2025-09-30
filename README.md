@@ -6,7 +6,10 @@
 
 
 
-Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso), [Mike Eberle]() 
+Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso),[Byunggil, Yoo](https://github.com/byoo), [Mike Eberle]() 
+
+## Pre-built binaries
+[Static Linux Releases](https://github.com/PacificBiosciences/owl/releases)
 
 ## Building
 ```
