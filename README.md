@@ -6,7 +6,7 @@
 
 
 
-Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso), [Byunggil Yoo](https://github.com/byoo), [Mike Eberle]() 
+Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso), [Byunggil Yoo](https://github.com/byoo), [Midhat Farooqi](),[Mike Eberle]() 
 
 ## Pre-built binaries
 [Static Linux Releases](https://github.com/PacificBiosciences/owl/releases)
@@ -30,7 +30,7 @@ Owl is provided as a stand alone tool and integrated into the [HiFi Somatic Work
 ### step one, profile the repeats
 ```
  # profile the repeats.
- owl profile --bam NA12878.haplotagged.bam --regions data/Simple-repeats-50k.bed.gz --sample NA12878 > NA12878.results.txt
+ owl profile --bam NA12878.haplotagged.bam --regions data/GRCh38_owl_markers.bed.gz --sample NA12878 > NA12878.results.txt
 ```
 
 ### step two, summarize and score sample(s)
