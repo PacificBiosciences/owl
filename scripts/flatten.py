@@ -70,17 +70,24 @@ def main():
 
         # Split by ';' to get each haplotype entry
         entries = [e for e in sample_data.split(";") if e.strip()]
+        
+        passing = 0
+       
+        for e in entries:
+             fields = e.split(",")
+            # Expect at least: hp, ct, mu, cv
+             if len(fields) >= 4:
+                hp, ct, mu, cv = fields[0:4]
+                if cv != '.':
+                    passing +=1
+
+        
         for e in entries:
             fields = e.split(",")
             # Expect at least: hp, ct, mu, cv
             if len(fields) >= 4:
                 hp, ct, mu, cv = fields[0:4]
-
-                # Skip if any is '.' or hp == '0'
-                if "." in (length, motif, hp, mu, cv):
-                    continue
-
-                print(f"{region}\t{length}\t{motif}\t{sample_name}\t{ct}\t{hp}\t{mu}\t{cv}")
+                print(f"{region}\t{length}\t{motif}\t{sample_name}\t{ct}\t{hp}\t{mu}\t{cv}\t{passing}")
 
 if __name__ == "__main__":
     main()
