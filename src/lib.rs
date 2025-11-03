@@ -508,7 +508,105 @@ pub fn parse_custom_file_iter(path: &str) -> io::Result<RegionRecordIter<BufRead
     })
 }
 
-#[cfg(test)]
+/// Return all cyclic rotations of a single string, including the original.
+/// For example, "abc" -> ["abc", "bca", "cab"].
+pub fn rotations_for(s: &str) -> Vec<String> {
+    if s.is_empty() {
+        return vec![String::new()];
+    }
+
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+
+    (0..n)
+        .map(|i| {
+            chars[i..]
+                .iter()
+                .chain(chars[..i].iter())
+                .collect::<String>()
+        })
+        .collect()
+}
+
+/// Given a vector of strings, return a flattened, lexicographically
+/// sorted vector containing all rotations of all input strings.
+pub fn all_rotations(strings: &[String]) -> Vec<String> {
+    let mut results: Vec<String> = strings.iter().flat_map(|s| rotations_for(s)).collect();
+    results.sort();
+    results
+}
+
+// Reverse-complement a DNA sequence (ASCII), including IUPAC ambiguity codes.
+///
+/// Assumes the input is ASCII-only. For bytes outside ASCII, behavior is "identity per byte"
+/// and the output may not be valid UTF-8.
+///
+/// Mappings (uppercase and lowercase):
+///   A <-> T, C <-> G
+///   R <-> Y, S <-> S, W <-> W, K <-> M, B <-> V, D <-> H, N <-> N
+///
+/// Any other byte (e.g. '-', '.') is left unchanged.
+pub fn revcomp(seq: &str) -> String {
+    let bytes = seq.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+
+    for &b in bytes.iter().rev() {
+        out.push(COMP_TABLE[b as usize]);
+    }
+
+    // Safe as long as input is ASCII, since table preserves ASCII.
+    String::from_utf8(out).expect("revcomp: non-ASCII input produced invalid UTF-8")
+}
+
+const COMP_TABLE: [u8; 256] = {
+    let mut t = [0u8; 256];
+    let mut i = 0;
+    // Default: identity mapping
+    while i < 256 {
+        t[i] = i as u8;
+        i += 1;
+    }
+
+    // Canonical bases (uppercase)
+    t[b'A' as usize] = b'T';
+    t[b'C' as usize] = b'G';
+    t[b'G' as usize] = b'C';
+    t[b'T' as usize] = b'A';
+
+    // Canonical bases (lowercase)
+    t[b'a' as usize] = b't';
+    t[b'c' as usize] = b'g';
+    t[b'g' as usize] = b'c';
+    t[b't' as usize] = b'a';
+
+    // IUPAC ambiguity (uppercase)
+    t[b'R' as usize] = b'Y'; // A/G <-> C/T
+    t[b'Y' as usize] = b'R';
+    t[b'S' as usize] = b'S'; // G/C <-> G/C
+    t[b'W' as usize] = b'W'; // A/T <-> A/T
+    t[b'K' as usize] = b'M'; // G/T <-> A/C
+    t[b'M' as usize] = b'K';
+    t[b'B' as usize] = b'V'; // C/G/T <-> A/C/G
+    t[b'V' as usize] = b'B';
+    t[b'D' as usize] = b'H'; // A/G/T <-> A/C/T
+    t[b'H' as usize] = b'D';
+    t[b'N' as usize] = b'N'; // any <-> any
+
+    // IUPAC ambiguity (lowercase)
+    t[b'r' as usize] = b'y';
+    t[b'y' as usize] = b'r';
+    t[b's' as usize] = b's';
+    t[b'w' as usize] = b'w';
+    t[b'k' as usize] = b'm';
+    t[b'm' as usize] = b'k';
+    t[b'b' as usize] = b'v';
+    t[b'v' as usize] = b'b';
+    t[b'd' as usize] = b'h';
+    t[b'h' as usize] = b'd';
+    t[b'n' as usize] = b'n';
+
+    t
+};
 
 mod tests {
     use super::*;
@@ -704,5 +802,117 @@ mod tests {
         assert_eq!(bt.3, 100.0);
         assert_eq!(bt.1, 3);
         assert_eq!(bt.2, 25);
+    }
+    #[test]
+    fn test_rotations_for_basic() {
+        let s = "abc";
+        let rots = rotations_for(s);
+        assert_eq!(rots, vec!["abc", "bca", "cab"]);
+    }
+
+    #[test]
+    fn test_rotations_for_single_char() {
+        let s = "x";
+        let rots = rotations_for(s);
+        assert_eq!(rots, vec!["x"]);
+    }
+
+    #[test]
+    fn test_rotations_for_empty() {
+        let s = "";
+        let rots = rotations_for(s);
+        assert_eq!(rots, vec![""]);
+    }
+
+    #[test]
+    fn test_rotations_for_unicode() {
+        let s = "áβ";
+        let rots = rotations_for(s);
+        assert_eq!(rots, vec!["áβ", "βá"]);
+    }
+
+    #[test]
+    fn test_all_rotations_sorted_flat() {
+        let v = vec!["abc".to_string(), "xy".to_string()];
+        let result = all_rotations(&v);
+
+        assert_eq!(
+            result,
+            vec![
+                "abc".to_string(),
+                "bca".to_string(),
+                "cab".to_string(),
+                "xy".to_string(),
+                "yx".to_string(),
+            ]
+        );
+
+        // confirm lexicographic order
+        assert!(result.windows(2).all(|w| w[0] <= w[1]));
+    }
+
+    #[test]
+    fn test_lexicographic_sorting() {
+        let v = vec!["ba".to_string(), "ab".to_string()];
+        let result = all_rotations(&v);
+        assert_eq!(result, vec!["ab", "ab", "ba", "ba"]);
+    }
+
+    #[test]
+    fn test_revcomp_simple() {
+        let seq = "ACGT";
+        let rc = revcomp(seq);
+        assert_eq!(rc, "ACGT"); // reverse "TGCA", complement -> "ACGT"
+    }
+
+    #[test]
+    fn test_revcomp_empty() {
+        let seq = "";
+        let rc = revcomp(seq);
+        assert_eq!(rc, "");
+    }
+
+    #[test]
+    fn test_revcomp_iupac_upper() {
+        // Original:  A R Y K M B V D H N
+        // Reverse:   N H D V B M K Y R A
+        // Complement: N D H B V K M R Y T  => "NDHBVKMRYT"
+        let seq = "ARYKMBVDHN";
+        let rc = revcomp(seq);
+        assert_eq!(rc, "NDHBVKMRYT");
+    }
+
+    #[test]
+    fn test_revcomp_iupac_lower() {
+        let seq = "arykmbvdhn";
+        let rc = revcomp(seq);
+        assert_eq!(rc, "ndhbvkmryt");
+    }
+
+    #[test]
+    fn test_revcomp_mixed_case() {
+        let seq = "aCgTnRrYy";
+        let rc = revcomp(seq);
+        // reverse: yY rR n T g C a
+        // complement per base:
+        // y -> r
+        // Y -> R
+        // r -> y
+        // R -> Y
+        // n -> n
+        // T -> A
+        // g -> c
+        // C -> G
+        // a -> t
+        assert_eq!(rc, "rRyYnAcGt");
+    }
+
+    #[test]
+    fn test_revcomp_with_gaps() {
+        let seq = "ACGT-ACGT.";
+        let rc = revcomp(seq);
+        // reverse: . T G C A - T G C A
+        // complement: . A C G T - A C G T
+        assert_eq!(rc, ".ACGT-ACGT");
     }
 }

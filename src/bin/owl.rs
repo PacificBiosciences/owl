@@ -5,9 +5,11 @@ use log::debug;
 use log::info;
 use log::warn;
 use log::LevelFilter;
+use owl::all_rotations;
 use owl::average_phred;
 use owl::parse_custom_file_iter;
 use owl::parse_repeat_file;
+use owl::revcomp;
 use owl::underline_span;
 use owl::MotifAligner;
 use rust_htslib::bam::ext::BamRecordExtensions;
@@ -133,6 +135,10 @@ struct ScoreArgs {
     /// Exclude unphased reads
     #[arg(short, long)]
     unphased: bool,
+
+    /// Canonicalize motifs (reverse complement, and rotate, keeping lowest)
+    #[arg(short, long)]
+    minimize: bool,
 
     /// Only score these samples
     #[arg(short, long, num_args = 1.., required = false)]
@@ -748,7 +754,18 @@ fn run_score(args: ScoreArgs) {
             let mut site_phased = false;
 
             // motif counts bucket for this site (global across samples)
-            let motifc = motif_counts.entry(record.motif.clone()).or_insert((0, 0));
+
+            let mut motif_key = record.motif.clone();
+
+            if args.minimize {
+                let mut motifs = Vec::new();
+                motifs.push(motif_key.clone());
+                motifs.push(revcomp(&motif_key.clone()));
+                let rotations = all_rotations(&motifs);
+                motif_key = rotations.first().unwrap().clone();
+            }
+
+            let motifc = motif_counts.entry(motif_key).or_insert((0, 0));
 
             if alleles.len() > 1 {
                 site_phased = true;
