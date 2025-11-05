@@ -163,12 +163,12 @@ impl MotifAligner {
         aligner.target = motif_bytes;
         aligner.motif = target_bytes;
 
-        aligner.smith_waterman_align();
+        aligner.cyclical_align();
 
         aligner
     }
 
-    fn smith_waterman_align(&mut self) {
+    fn cyclical_align(&mut self) {
         for i in 1..self.rows() {
             // First pass: compute all cells in the row
             for j in 1..self.cols() {
