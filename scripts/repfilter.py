@@ -61,7 +61,9 @@ class RMSKRecord:
 
     @property
     def identity(self) -> float:
-        # identity = 100 - (milliDiv / 10.0); milliDiv is 1/1000 percent divergence
+        # milliDiv is "divergence * 1000"
+        # identity (%) = 100 - divergence(%)
+        #              = 100 - (milliDiv / 10)
         return 100.0 - (self.milliDiv / 10.0)
 
 def open_maybe_gzip(path: str) -> TextIO:
@@ -110,7 +112,8 @@ def is_basic_motif(core: str) -> bool:
       - AND one of:
           * homopolymer (len==1, A/C/G/T)
           * dinucleotide (len==2, A/C/G/T)
-          * contains any run of the same base like 'AA','CC','GG','TT' (e.g., ATT, GCC, AATA)
+          * contains any run of the same base like 'AA','CC','GG','TT'
+            (e.g., ATT, GCC, AATA)
     """
     if not core:
         return False
@@ -137,7 +140,7 @@ def filter_records(
     max_len: Optional[int],
     min_identity: Optional[float],
     motif_core_basic: bool,
-    max_unit_len: Optional[int],          # <-- NEW
+    max_unit_len: Optional[int],
 ) -> Iterator[RMSKRecord]:
     motif_pat = re.compile(motif_regex) if motif_regex else None
     for r in records:
@@ -157,11 +160,10 @@ def filter_records(
             continue
 
         # Motif-based filters
-        # If any motif constraint is present, require the "(XXX)n" form
         if motif_pat or motif_core_basic or (max_unit_len is not None):
             core = r.motif_core
             if core is None:
-                continue  # require "(...)n" simple-repeat form
+                continue  # require "(...)n"
             if motif_pat and not motif_pat.search(r.motif or r.repName):
                 continue
             if motif_core_basic and not is_basic_motif(core):
@@ -169,10 +171,10 @@ def filter_records(
             if (max_unit_len is not None) and (len(core) > max_unit_len):
                 continue
 
-        # Identity filter (computed from milliDiv)
+        # Identity filter
         if min_identity is not None:
-            identity = 100.0 - (r.milliDiv / 10.0)
-            if identity < min_identity:
+            ident = r.identity  # use the property (100 - milliDiv/1000)
+            if ident < min_identity:
                 continue
 
         yield r
@@ -188,21 +190,42 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--class", dest="rep_class", help="Filter: repClass (e.g. Simple_repeat, SINE, LTR)")
     p.add_argument("--family", dest="rep_family", help="Filter: repFamily (e.g. Alu, ERVL-MaLR)")
     p.add_argument("--motif-regex", help="Filter regex applied to motif like '(AC)n' if present, else repName")
-    p.add_argument("--motif-core-basic", action="store_true",
-                   help="Keep only Simple_repeat motifs that (1) have length ≤ 6 and (2) are homopolymers, "
-                        "dinucleotides, or contain any run of the same base (e.g., ATT, GCC, AATA).")
-    p.add_argument("--max-unit-len", type=int, default=None,   # <-- NEW
-                   help="Keep only Simple_repeat motifs of the form '(XXX)n' whose repeat unit length "
-                        "is ≤ this value (e.g., 1 for homopolymers, 2 for di-, …).")
+    p.add_argument(
+        "--motif-core-basic",
+        action="store_true",
+        help=(
+            "Keep only Simple_repeat motifs that (1) have length ≤ 6 and "
+            "(2) are homopolymers, dinucleotides, or contain any run of the "
+            "same base (e.g., ATT, GCC, AATA)."
+        ),
+    )
+    p.add_argument(
+        "--max-unit-len",
+        type=int,
+        default=None,
+        help=(
+            "Keep only Simple_repeat motifs of the form '(XXX)n' whose repeat "
+            "unit length is ≤ this value (e.g., 1 for homopolymers, 2 for di-, …)."
+        ),
+    )
     p.add_argument("--min-length", type=int, default=None, help="Filter: minimum genomic length")
     p.add_argument("--max-length", type=int, default=None, help="Filter: maximum genomic length")
-    p.add_argument("--min-identity", type=float,
-                   help="Minimum percent identity (0–100). Computed as 100 - milliDiv/10.")
+    p.add_argument(
+        "--min-identity",
+        type=float,
+        help="Minimum percent identity (0–100). Computed as 100 - milliDiv/1000.",
+    )
     p.add_argument(
         "--fields",
         default="genoName,genoStart,genoEnd,repName,repClass,repFamily",
-        help=f"Comma-separated fields to print (default: %(default)s). "
-             f"Available: {','.join(COLS)} + length,motif,motif_core,identity",
+        help=(
+            "Comma-separated fields to print (default: %(default)s). "
+            "Available: "
+            + ",".join(COLS)
+            + " + length,motif,motif_core,identity. "
+            "Regardless of this setting, an 'identity' column (percent) "
+            "is appended as the final column."
+        ),
     )
     args = p.parse_args(argv)
 
@@ -220,13 +243,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             max_len=args.max_length,
             min_identity=args.min_identity,
             motif_core_basic=args.motif_core_basic,
-            max_unit_len=args.max_unit_len,   # <-- NEW
+            max_unit_len=args.max_unit_len,
         )
 
         wanted = [f.strip() for f in args.fields.split(",") if f.strip()]
         for r in recs:
             row = []
             d = asdict(r)
+
+            # user-requested fields
             for f in wanted:
                 if f in ("length", "motif", "motif_core", "identity"):
                     val = getattr(r, f)
@@ -236,6 +261,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     sys.stderr.write(f"[warn] unknown field '{f}'\n")
                     val = ""
                 row.append(f"{val:.3f}" if isinstance(val, float) else str(val if val is not None else ""))
+
+            # always append identity as last column
+            row.append(f"{r.identity:.3f}")
+
             print("\t".join(row))
     return 0
 
