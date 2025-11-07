@@ -13,8 +13,8 @@ gunzip rmsk.txt.gz
 python3 ./scripts/repfilter.py \
   --min-length 20 \
   --max-length 100 \
-  --min-identity 99.99 \
-  --max-unit-len 5 \
+  --min-identity 97 \
+  --max-unit-len 6 \
   rmsk.txt \
   > repeats.filtered.bed
 ``` 
@@ -22,17 +22,7 @@ python3 ./scripts/repfilter.py \
 3. Get main chromosomes
 
 ```
-grep -v -E "Un|random|alt|fix|chrY" repeats.filtered.bed > repeats.mainchroms.bed
+grep -v -E "Un|random|alt|fix|chrY" repeats.filtered.bed | cut -f 1-4 > repeats.mainchroms.bed
 ```
 
-
-4. Subtract “odd” regions (e.g., assembly gaps or masked regions)
-
-```
-bedtools subtract -A \
-  -a repeats.mainchroms.bed \
-  -b ./data/GRCh38.oddRegions.bed.gz \
-  > repeats.noOdd.bed
-```
-
-5. S
+Following these steps, additional refinements can be applied to the marker set. For instance, one can evaluate the frequency of site no-calls or identify and remove markers exhibiting excessive variability across populations.
