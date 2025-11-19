@@ -20,7 +20,7 @@ def main():
         sys.exit(1)
 
 
-    sample = sys.arv[2]
+    sample = sys.argv[2]
     infile = sys.argv[1]
 
     # site -> set of high haplotypes
