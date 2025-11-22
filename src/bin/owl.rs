@@ -174,6 +174,7 @@ pub struct ReadSegment {
     qual: String,
     _len: usize,
     hap: i32,
+    ps: i32,
 }
 
 pub struct Region {
@@ -288,8 +289,9 @@ pub fn process_region(
     region: &str,
     mg: f32,
     min_mq: u8,
-) -> (Region, Vec<ReadSegment>, f64) {
+) -> (Region, Vec<ReadSegment>, f64, HashMap<i32, usize>) {
     let mut read_segs = Vec::new();
+    let mut ps_sets: HashMap<i32, usize> = HashMap::new();
 
     let parts: Vec<&str> = region.split(':').collect();
     if parts.len() != 2 {
@@ -365,6 +367,18 @@ pub fn process_region(
             _ => 0,
         };
 
+        let ps = match r.aux(b"PS") {
+            Ok(Aux::U8(val)) => val as i32,
+            Ok(Aux::I8(val)) => val as i32,
+            Ok(Aux::U16(val)) => val as i32,
+            Ok(Aux::I16(val)) => val as i32,
+            Ok(Aux::U32(val)) => val as i32,
+            Ok(Aux::I32(val)) => val,
+            _ => 0,
+        };
+
+        *ps_sets.entry(ps).or_insert(0) += 1;
+
         let (q_start, q_end) = compute_query_interval(&r.cigar(), r.pos() as i64, t_start, t_end);
         let seq = String::from_utf8_lossy(&r.seq().as_bytes()).to_string();
         let qual = r
@@ -383,9 +397,10 @@ pub fn process_region(
             qual: qual_seq,
             _len: dna_len,
             hap: hap,
+            ps: ps,
         });
     }
-    (rinfo, read_segs, nfail as f64 / ntotal as f64)
+    (rinfo, read_segs, nfail as f64 / ntotal as f64, ps_sets)
 }
 
 fn gen_header() -> String {
@@ -397,6 +412,16 @@ fn gen_header() -> String {
         env!("CARGO_PKG_VERSION"),
         today
     ));
+    header.push_str(&format!(
+    "##INFO=<ID=RL,Number=1,Type=Integer,Description=\"reference repeat length at this locus\">\n"
+));
+    header.push_str(&format!(
+        "##INFO=<ID=MO,Number=1,Type=String,Description=\"repeat motif for this locus\">\n"
+    ));
+    header.push_str(&format!(
+        "##FORMAT=<ID=PS,Number=1,Type=Integer,Description=\"haplotype block\">\n"
+    ));
+
     header.push_str(&format!(
         "##FORMAT=<ID=HP,Number=1,Type=Integer,Description=\"haplotype tag\">\n"
     ));
@@ -444,7 +469,7 @@ fn run_profile(args: ProfileArgs) {
     let mut region_count = 0;
 
     print!("{}", gen_header());
-    println!("#Region\tlen\tmotif\tformat\t{}", samples.join(","));
+    println!("#Region\tinfo\tformat\t{}", samples.join(","));
 
     let pb = ProgressBar::new(regions.len() as u64);
 
@@ -457,15 +482,17 @@ fn run_profile(args: ProfileArgs) {
 
         pb.inc(1);
 
-        let read_sub = process_region(control_reads, args.flag, &r.0, args.min_mg, args.min_mapq);
+        let read_sub: (Region, Vec<ReadSegment>, f64, HashMap<i32, usize>) =
+            process_region(control_reads, args.flag, &r.0, args.min_mg, args.min_mapq);
 
         let mut bad_region = false;
 
-        if read_sub.2 > args.max_filt_frac {
+        if read_sub.2 > args.max_filt_frac || read_sub.3.len() > 1 {
             debug!(
-                "Region {} failed because {:.2}% of reads failed filters.",
+                "Region {} failed because either {:.2}% of reads failed filters, or mixed phase blocks {:?}",
                 r.0,
-                read_sub.2 * 100.0
+                read_sub.2 * 100.0,
+                read_sub.3,
             );
             bad_region = true;
             bad_regions += 1;
@@ -475,6 +502,14 @@ fn run_profile(args: ProfileArgs) {
             debug!("Region {} contained no passing alignments.", r.0);
         }
 
+        let (best_ps, best_ps_count) = read_sub
+            .3
+            .iter()
+            .filter(|(&ps, _)| ps != 0) // skip zero keys
+            .max_by_key(|(_, &count)| count) // select max by count
+            .map(|(&ps, &count)| (ps, count)) // extract pair
+            .unwrap_or((0, 0)); // safe default
+
         let mut haps: HashMap<i32, Vec<(f64, String, String)>> = HashMap::new();
 
         for c in read_sub.1 {
@@ -482,14 +517,10 @@ fn run_profile(args: ProfileArgs) {
 
             let (score, start, end, pid) = aligner.backtrace();
 
-            if average_phred(&c.qual) < args.min_bq || end - start < r.1.len() || pid < args.min_idt
-            {
-                continue;
-            }
-
             debug!(
-                "hap:{} seq-len:{} qual:{:.2} name:{} score/pid: {}/{} mlen:{} seq:{}",
+                "hap:{} ps:{} seq-len:{} qual:{:.2} name:{} score/pid: {}/{} mlen:{} seq:{}",
                 c.hap,
+                c.ps,
                 end - start, //
                 average_phred(&c.qual),
                 c.name,
@@ -498,6 +529,14 @@ fn run_profile(args: ProfileArgs) {
                 r.1.len(),
                 underline_span(&c.seq, start, end)
             );
+
+            if average_phred(&c.qual) < args.min_bq
+                || end - start < r.1.len()
+                || pid < args.min_idt
+                || (c.ps != 0 && c.ps != best_ps)
+            {
+                continue;
+            }
 
             let read_repeat = c.seq[start..end].to_string();
             haps.entry(c.hap) // Replace `c.group` with your intended key
@@ -532,7 +571,17 @@ fn run_profile(args: ProfileArgs) {
             let sd = (&repeat_lens).std_dev();
             let cov = (sd / mu) * 100.0;
 
-            let info_str = format!("{},{},{:.1},{:.1},{}", h.0, repeats.len(), mu, cov, jlen);
+            debug!("mu:{} sd:{} cv:{}", mu, sd, cov);
+
+            let info_str = format!(
+                "{},{},{},{:.1},{:.1},{}",
+                best_ps,
+                h.0,
+                repeats.len(),
+                mu,
+                cov,
+                jlen
+            );
 
             if (h.1.len() as i32) >= args.min_cov && !bad_region {
                 hap_info.push(HapInfo {
@@ -542,7 +591,7 @@ fn run_profile(args: ProfileArgs) {
             } else {
                 hap_info.push(HapInfo {
                     idx: h.0,
-                    rest: format!("{},{},.,.,.", h.0, repeats.len()).to_string(),
+                    rest: format!("{},{},{},.,.,.", best_ps, h.0, repeats.len()).to_string(),
                 });
             }
         }
@@ -550,7 +599,7 @@ fn run_profile(args: ProfileArgs) {
         if hap_info.is_empty() {
             hap_info.push(HapInfo {
                 idx: 0,
-                rest: "0,0,.,.,.".to_string(),
+                rest: "0,0,0,.,.,.".to_string(),
             });
         }
 
@@ -561,11 +610,11 @@ fn run_profile(args: ProfileArgs) {
             .collect::<Vec<_>>()
             .join(";");
         println!(
-            "{}\t{}\t{}\t{}\t{}",
+            "{}\tRL={};MO={}\t{}\t{}",
             r.0,
             read_sub.0.end - read_sub.0.start,
             r.1,
-            "hp:ct:mu:cv:ln",
+            "PS:HP:CT:MU:CV:LN",
             joined
         );
         ok_regions += 1;
@@ -695,6 +744,12 @@ fn run_score(args: ScoreArgs) {
     let mut output_motifs = args.prefix.clone();
     output_motifs += ".owl-motif-counts.txt";
 
+    let mut output_phased = args.prefix.clone();
+    output_phased += ".owl-phased-sites.txt";
+
+    let mut output_phased_summary = args.prefix.clone();
+    output_phased_summary += ".owl-phased-summary.txt";
+
     let mut output_scores_fh = OpenOptions::new()
         .write(true)
         .create(true)
@@ -709,14 +764,37 @@ fn run_score(args: ScoreArgs) {
         .open(output_motifs)
         .unwrap();
 
+    let mut output_phased_fh = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(output_phased)
+        .unwrap();
+
+    let mut output_phased_summary_fh = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(output_phased_summary)
+        .unwrap();
+
     // NOTE: extended header with per-sample passing stats
     output_scores_fh
         .write_all(
             b"#sample\t#high\t#low\t%high\t#phased\t%phased\t#sites\t#passing\t%passing\tqc\n",
         )
         .unwrap();
+
     output_motif_fh
         .write_all(b"motif\t#high\t#low\t%high\n")
+        .unwrap();
+
+    output_phased_fh
+        .write_all(b"#sample\tregion\tphase_block\tmotif\thap1\thap2\n")
+        .unwrap();
+
+    output_phased_summary_fh
+        .write_all(b"#sample:phase_block\tlow\th1-high\th2-high\tco-high\tsum\n")
         .unwrap();
 
     env_logger::builder()
@@ -732,6 +810,8 @@ fn run_score(args: ScoreArgs) {
 
     // NEW: per-sample site totals and passing-site counts
     let mut sample_site_counts: HashMap<String, (usize, usize, usize)> = HashMap::new(); // (total_sites, passing_sites)
+
+    let mut sample_cohigh_counts: HashMap<String, (usize, usize, usize, usize)> = HashMap::new(); // (h1+h2, h1, h2)
 
     // Per-motif counts (global)
     let mut motif_counts: HashMap<String, (usize, usize)> = HashMap::new();
@@ -771,10 +851,18 @@ fn run_score(args: ScoreArgs) {
                 site_phased = true;
             }
 
+            let mut high_hap = [0; 2];
+
+            let mut n_phased_haps = 0;
+
+            let mut phase_block = 0;
+
             for allele in alleles {
                 // 1. If the haplotype has low read depth, skip
                 // 2. If the haplotype is unphased (0) and skipping unphased
                 // 3. If the haplotype is unphased, but there are other haplotypes (phased), skip
+
+                phase_block = allele.phase_block;
 
                 if allele.count < args.min_depth
                     || (allele.haplotype == 0 && args.unphased)
@@ -784,6 +872,7 @@ fn run_score(args: ScoreArgs) {
                 }
                 site_passed = true;
 
+                // cov is CV Score, not coverage
                 if allele.cov >= args.cov {
                     entry.0 += 1; // hi
                     motifc.0 += 1;
@@ -802,6 +891,51 @@ fn run_score(args: ScoreArgs) {
                     allele.cov,
                     allele.lengths
                 );
+                if allele.haplotype != 0 {
+                    n_phased_haps += 1;
+                }
+
+                if allele.haplotype == 0 || allele.cov < args.cov {
+                    continue;
+                }
+
+                // this is a high score on either haplotype 1 or 2
+                high_hap[(allele.haplotype - 1) as usize] = 1;
+            }
+
+            let new_name = format!("{}:{}", sample_name, phase_block);
+
+            let co_high = sample_cohigh_counts
+                .entry(new_name.clone())
+                .or_insert((0, 0, 0, 0));
+
+            if n_phased_haps == 2 {
+                let v = high_hap[0] + high_hap[1];
+
+                match v {
+                    0 => {
+                        co_high.0 += 1;
+                    }
+                    1 => {
+                        if high_hap[0] == 1 {
+                            co_high.1 += 1;
+                        } else {
+                            co_high.2 += 1;
+                        }
+                    }
+                    2 => {
+                        co_high.3 += 1;
+                    }
+                    _ => {
+                        panic!("unexpected hap count v = {}", v);
+                    }
+                }
+                writeln!(
+                    output_phased_fh,
+                    "{}\t{}\t{}\t{}\t{}\t{}",
+                    sample_name, record.region, phase_block, record.motif, high_hap[0], high_hap[1]
+                )
+                .unwrap();
             }
 
             // Update per-sample site counters
@@ -821,6 +955,20 @@ fn run_score(args: ScoreArgs) {
     // Stable output order by sample name
     let mut sorted_samples: Vec<_> = sd_counts.iter().collect();
     sorted_samples.sort_by_key(|(sample_name, _)| *sample_name);
+
+    for (k, v) in sample_cohigh_counts {
+        writeln!(
+            output_phased_summary_fh,
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            k,
+            v.0,
+            v.1,
+            v.2,
+            v.3,
+            (v.0 + v.1 + v.2 + v.3),
+        )
+        .unwrap();
+    }
 
     for (sample_name, (hi, lo)) in sorted_samples {
         let denom_hilo = *hi + *lo;
