@@ -347,6 +347,7 @@ impl MotifAligner {
 
 #[derive(Debug)]
 pub struct SampleData {
+    pub phase_block: u32,
     pub haplotype: u32,
     pub count: u32,
     pub mean: f32,
@@ -369,17 +370,36 @@ impl RegionRecord {
         }
 
         let mut cols = line.split_whitespace();
-        let region = cols.next()?.to_string();
-        let len: u32 = cols.next()?.parse().ok()?;
-        let motif = cols.next()?.to_string();
-        let format = cols.next()?.to_string();
 
-        let remaining: Vec<&str> = cols.collect();
-        /*
-        if format_and_samples.len() < sample_names.len() * 2 {
-            return None;
+        // 1) Basic columns
+        let region = cols.next()?.to_string(); // "chr22:10515074-10515121"
+        let info = cols.next()?; // "RL=47;MO=GAAG"
+        let format = cols.next()?.to_string(); // "PS:HP:CT:MU:CV:LN"
+
+        // 2) Parse RL and MO out of the info field
+        let mut len_opt: Option<u32> = None;
+        let mut motif_opt: Option<String> = None;
+
+        for kv in info.split(';') {
+            let mut parts = kv.splitn(2, '=');
+            if let (Some(key), Some(val)) = (parts.next(), parts.next()) {
+                match key {
+                    "RL" => {
+                        len_opt = val.parse::<u32>().ok();
+                    }
+                    "MO" => {
+                        motif_opt = Some(val.to_string());
+                    }
+                    _ => {}
+                }
+            }
         }
-        */
+
+        let len = len_opt?; // u32
+        let motif = motif_opt?; // String
+
+        // 3) Remaining columns = per-sample fields
+        let remaining: Vec<&str> = cols.collect();
 
         let mut sample_data = HashMap::new();
         for (i, sample_name) in sample_names.iter().enumerate() {
@@ -409,21 +429,23 @@ impl RegionRecord {
 }
 
 fn parse_sample_entry(_format: &str, value: &str) -> Option<SampleData> {
-    let fields: Vec<&str> = value.splitn(5, ',').collect();
-    if fields.len() < 5 {
+    let fields: Vec<&str> = value.splitn(6, ',').collect();
+    if fields.len() < 6 {
         return None;
     }
 
-    let hp: u32 = fields[0].parse().ok()?;
-    let ct: u32 = fields[1].parse().ok()?;
-    let mu: f32 = fields[2].parse().ok()?;
-    let cov: f32 = fields[3].parse().ok()?;
-    let lengths: Vec<u32> = fields[4]
+    let ps: u32 = fields[0].parse().ok()?;
+    let hp: u32 = fields[1].parse().ok()?;
+    let ct: u32 = fields[2].parse().ok()?;
+    let mu: f32 = fields[3].parse().ok()?;
+    let cov: f32 = fields[4].parse().ok()?;
+    let lengths: Vec<u32> = fields[5]
         .split(':')
         .filter_map(|s| s.parse().ok())
         .collect();
 
     Some(SampleData {
+        phase_block: ps,
         haplotype: hp,
         count: ct,
         mean: mu,
@@ -487,14 +509,14 @@ pub fn parse_custom_file_iter(path: &str) -> io::Result<RegionRecordIter<BufRead
                 cols_raw.split_whitespace().collect()
             };
 
-            if cols.len() < 5 {
+            if cols.len() < 4 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("Malformed header line: {}", cols_raw),
                 ));
             }
 
-            let fields = cols.iter().skip(4).map(|s| s.to_string()).collect();
+            let fields = cols.iter().skip(3).map(|s| s.to_string()).collect();
             break fields; // <- assign once via loop break
         }
 
