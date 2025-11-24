@@ -44,10 +44,10 @@ def main():
     else:
         header = raw_header.split()
 
-    # Validate required columns
+    # Validate required columns for the new format
     try:
-        length_col = header.index("len")
-        motif_col = header.index("motif")
+        region_col = header.index("Region")
+        info_col = header.index("info")
         format_col = header.index("format")
     except ValueError as e:
         print(f"Error: required column missing in header: {e}", file=sys.stderr)
@@ -72,12 +72,22 @@ def main():
         if len(row) <= sample_idx:
             continue
 
-        region = row[0]
-        length = row[length_col]
-        motif = row[motif_col]
+        region = row[region_col]
+        info_str = row[info_col]
         sample_data = row[sample_idx]
 
+        # Parse info field: RL=41;MO=AAAT;...
+        info_dict = {}
+        for item in info_str.split(";"):
+            if "=" in item:
+                key, val = item.split("=", 1)
+                info_dict[key] = val
+
+        length = info_dict.get("RL", ".")
+        motif = info_dict.get("MO", ".")
+
         # Split by ';' to get each haplotype entry
+        # FORMAT is PS:HP:CT:MU:CV:LN
         entries = [e for e in sample_data.split(";") if e.strip()]
         if not entries:
             continue
@@ -85,7 +95,7 @@ def main():
         passing = 0
 
         # For --max mode
-        best_fields = None   # (hp, ct, mu, cv_str)
+        best_fields = None   # (ps, hp, ct, mu, cv_str)
         best_cv_val = None
         has_numeric_cv = False
         fallback_fields = None
@@ -93,14 +103,14 @@ def main():
         # First pass: compute passing count and, if needed, track max CV
         for e in entries:
             fields = e.split(",")
-            # Expect at least: hp, ct, mu, cv
-            if len(fields) < 4:
+            # Expect at least: PS, HP, CT, MU, CV
+            if len(fields) < 5:
                 continue
-            hp, ct, mu, cv = fields[0:4]
+            ps, hp, ct, mu, cv = fields[0:5]
 
             # First valid entry as a fallback if we never find a numeric CV
             if fallback_fields is None:
-                fallback_fields = (hp, ct, mu, cv)
+                fallback_fields = (ps, hp, ct, mu, cv)
 
             if cv != ".":
                 passing += 1
@@ -113,14 +123,14 @@ def main():
                     if (not has_numeric_cv) or (cv_val > best_cv_val):
                         has_numeric_cv = True
                         best_cv_val = cv_val
-                        best_fields = (hp, ct, mu, cv)
+                        best_fields = (ps, hp, ct, mu, cv)
 
         if args.max:
             # Only one output per row
             if has_numeric_cv and best_fields is not None:
-                hp, ct, mu, cv = best_fields
+                ps, hp, ct, mu, cv = best_fields
             elif fallback_fields is not None:
-                hp, ct, mu, cv = fallback_fields
+                ps, hp, ct, mu, cv = fallback_fields
             else:
                 continue
 
@@ -132,10 +142,9 @@ def main():
             # Original behaviour: print one line per haplotype entry
             for e in entries:
                 fields = e.split(",")
-                # Expect at least: hp, ct, mu, cv
-                if len(fields) < 4:
+                if len(fields) < 5:
                     continue
-                hp, ct, mu, cv = fields[0:4]
+                ps, hp, ct, mu, cv = fields[0:5]
                 print(
                     f"{region}\t{length}\t{motif}\t{sample_name}"
                     f"\t{ct}\t{hp}\t{mu}\t{cv}\t{passing}"
