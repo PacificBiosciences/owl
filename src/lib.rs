@@ -631,8 +631,6 @@ const COMP_TABLE: [u8; 256] = {
 };
 
 mod tests {
-    use super::*;
-    use assert_float_eq::assert_float_relative_eq;
 
     #[test]
     fn test_motif_alignment_basic() {
