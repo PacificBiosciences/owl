@@ -487,12 +487,11 @@ fn run_profile(args: ProfileArgs) {
 
         let mut bad_region = false;
 
-        if read_sub.2 > args.max_filt_frac || read_sub.3.len() > 1 {
+        if read_sub.2 > args.max_filt_frac {
             debug!(
-                "Region {} failed because either {:.2}% of reads failed filters, or mixed phase blocks {:?}",
+                "Region {} failed because either {:.2}% of reads failed filters.",
                 r.0,
                 read_sub.2 * 100.0,
-                read_sub.3,
             );
             bad_region = true;
             bad_regions += 1;
