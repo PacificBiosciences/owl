@@ -502,7 +502,7 @@ fn run_profile(args: ProfileArgs) {
             debug!("Region {} contained no passing alignments.", r.0);
         }
 
-        let (best_ps, best_ps_count) = read_sub
+        let (best_ps, _best_ps_count) = read_sub
             .3
             .iter()
             .filter(|(&ps, _)| ps != 0) // skip zero keys
@@ -792,10 +792,9 @@ fn run_score(args: ScoreArgs) {
     output_phased_fh
         .write_all(b"#sample\tregion\tphase_block\tmotif\thap1\thap2\n")
         .unwrap();
-
     output_phased_summary_fh
-        .write_all(b"#sample:phase_block\tlow\th1-high\th2-high\tco-high\tsum\n")
-        .unwrap();
+    .write_all(b"#sample:phase_block\tlow\th1-high\th2-high\tco-high\tsum\texpected_cohigh\tratio_obs_exp\n")
+    .unwrap();
 
     env_logger::builder()
         .format_timestamp_millis()
@@ -957,15 +956,40 @@ fn run_score(args: ScoreArgs) {
     sorted_samples.sort_by_key(|(sample_name, _)| *sample_name);
 
     for (k, v) in sample_cohigh_counts {
+        let low = v.0 as f64;
+        let h1_high = v.1 as f64;
+        let h2_high = v.2 as f64;
+        let co_high = v.3 as f64;
+
+        let n = low + h1_high + h2_high + co_high;
+
+        // Expected co-high under independence
+        let expected = if n > 0.0 {
+            let p_x = (h1_high + co_high) / n;
+            let p_y = (h2_high + co_high) / n;
+            p_x * p_y * n
+        } else {
+            0.0
+        };
+
+        // observed/expected (0.0 if expected == 0)
+        let ratio = if expected > 0.0 {
+            co_high / expected
+        } else {
+            0.0
+        };
+
         writeln!(
             output_phased_summary_fh,
-            "{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{:.2}\t{:.2}",
             k,
             v.0,
             v.1,
             v.2,
             v.3,
             (v.0 + v.1 + v.2 + v.3),
+            expected,
+            ratio,
         )
         .unwrap();
     }
