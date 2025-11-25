@@ -235,7 +235,7 @@ impl MotifAligner {
         for i in 0..self.rows() {
             for j in 0..self.cols() {
                 let cell = self.matrix[i][j];
-                if cell.score >= best.0 {
+                if cell.score > best.0 {
                     best = (cell.score, i, j);
                 }
             }
@@ -631,7 +631,35 @@ const COMP_TABLE: [u8; 256] = {
 };
 
 mod tests {
+    use super::*;
+    use assert_float_eq::assert_float_relative_eq;
+    #[test]
+    fn test_motif_alignment_motif_shift() {
+        let target = "ATCGACCTCTCTCTCTCTTTCTCTCTCTCTCTCTCTCTCTCTGTCTCTCTCTCCTCTCTCTCTCTCTCACACACACACACACACACACACACACACACA";
+        let motif = "CT";
+        let aligner = MotifAligner::align(target, motif);
 
+        aligner.print_matrix();
+
+        let (score, _i, _j) = aligner.best_score();
+
+        let bt = aligner.backtrace();
+
+        println!(
+            "motif:{} score:{} tstart:{} tend:{} pid:{:.3} tannoated:{}",
+            motif,
+            bt.0,
+            bt.1,
+            bt.2,
+            bt.3,
+            underline_span(target, bt.1, bt.2)
+        );
+
+        assert_eq!(score, 113);
+        assert_eq!(bt.1, 6);
+        assert_eq!(bt.2, 68);
+        assert_float_relative_eq!(bt.3, 95.23, 0.01);
+    }
     #[test]
     fn test_motif_alignment_basic() {
         let target = "ACGTTTTTTTTTTTTACGTTTTACGTACGTACGACGACGACGTTTTT";
