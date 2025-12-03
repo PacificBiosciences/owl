@@ -6,7 +6,7 @@
 
 
 
-Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso), [Byunggil Yoo](https://github.com/byoo), [Midhat Farooqi](),[Mike Eberle]() 
+Authors: [Zev Kronenberg](https://github.com/zeeev), [Khi Pin Chua](https://github.com/proteinosome), [Egor Dolzhenko](https://github.com/egor-dolzhenko), [Mark Chaisson](https://github.com/mchaisso), [Byunggil Yoo](https://github.com/byoo), [Midhat Farooqi](), [Mike Eberle]() 
 
 ## Pre-built binaries
 [Static Linux Releases](https://github.com/PacificBiosciences/owl/releases)
@@ -59,6 +59,9 @@ The motif file contains the same information, but summarizes the information acr
 
 
 ## Changelog 
+* v0.4.0 -- Dec 5 2025
+  - Add info field, and haplotype PS tag to the score output.
+  - Bug fixes, and changes to account for file format change.
 * v0.3.0 -- Sept 22 2025
   - Support bgzip bed files
   - Warn if `owl profile` does not encounter a phased region.

@@ -347,12 +347,14 @@ pub fn process_region(
         if (r.flags() & flag) > 0 || r.mapq() < min_mq || clips.0 || clips.1 || !mg_ok {
             nfail += 1;
             debug!(
-                "q-pos: {} {}, t-pos: {} {} mq: {}",
+                "q-pos: {} {}, t-pos: {} {} mq: {} clip-l: {} clip-r: {}",
                 r.pos(),
                 r.reference_end(),
                 t_start,
                 t_end,
-                r.mapq()
+                r.mapq(),
+                clips.0,
+                clips.1,
             );
             continue;
         }
@@ -489,7 +491,7 @@ fn run_profile(args: ProfileArgs) {
 
         if read_sub.2 > args.max_filt_frac {
             debug!(
-                "Region {} failed because either {:.2}% of reads failed filters.",
+                "Region {} failed because {:.2}% of reads failed filters.",
                 r.0,
                 read_sub.2 * 100.0,
             );

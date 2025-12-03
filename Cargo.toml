@@ -1,6 +1,6 @@
 [package]
 name = "owl"
-version = "0.3.0"
+version = "0.4.0"
 authors = [ "Zev Kronenberg", "Khi Pin Chua", "Egor Dolzhenko", "Mark Chaisson"]
 description = "MSI utils"
 edition = "2021"
