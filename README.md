@@ -36,11 +36,11 @@ Owl is provided as a stand alone tool and integrated into the [HiFi Somatic Work
 ### step two, summarize and score sample(s)
 ```
 # run the scoring step.
-owl score --file NA12878.results.txt --prefix NA12878-scored
+owl score --file NA12878.results.txt --prefix NA12878
 ```
 
 ## Output
-After running `owl score` there are two output files, `{prefix}.owl-motif-counts.txt` and `{prefix}.owl-scores.txt`. The score file provides a summary MSI score for each sample, whereas the motif file breaks down the score by motif. 
+After running `owl score` there are four output files with the main two `{prefix}.owl-motif-counts.txt` and `{prefix}.owl-scores.txt`. The score file provides a summary MSI score for each sample, whereas the motif file breaks down the score by motif. 
 
 | sample   | #high | #low | %high | #phased | %phased | #sites | #passing | %passing | qc   |
 | -------- | ----: | ---: | ----: | ------: | ------: | -----: | -------: | -------: | :--- |
@@ -62,6 +62,7 @@ The motif file contains the same information, but summarizes the information acr
 * v0.4.0 -- Dec 5 2025
   - Add info field, and haplotype PS tag to the score output.
   - Bug fixes, and changes to account for file format change.
+  - Add phase output files
 * v0.3.0 -- Sept 22 2025
   - Support bgzip bed files
   - Warn if `owl profile` does not encounter a phased region.
