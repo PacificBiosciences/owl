@@ -62,6 +62,10 @@ struct ProfileArgs {
     #[arg(short, long)]
     bam: String,
 
+    /// Hidden flag: collapse
+    #[arg(long, hide = true)]
+    collapse: bool,
+
     /// Genomic region(s) to score for MSI (bed format with motif)
     #[arg(short, long)]
     regions: String,
@@ -289,6 +293,7 @@ pub fn process_region(
     region: &str,
     mg: f32,
     min_mq: u8,
+    collapse: bool,
 ) -> (Region, Vec<ReadSegment>, f64, HashMap<i32, usize>) {
     let mut read_segs = Vec::new();
     let mut ps_sets: HashMap<i32, usize> = HashMap::new();
@@ -359,7 +364,7 @@ pub fn process_region(
             continue;
         }
 
-        let hap = match r.aux(b"HP") {
+        let mut hap = match r.aux(b"HP") {
             Ok(Aux::U8(val)) => val as i32,
             Ok(Aux::I8(val)) => val as i32,
             Ok(Aux::U16(val)) => val as i32,
@@ -369,7 +374,7 @@ pub fn process_region(
             _ => 0,
         };
 
-        let ps = match r.aux(b"PS") {
+        let mut ps = match r.aux(b"PS") {
             Ok(Aux::U8(val)) => val as i32,
             Ok(Aux::I8(val)) => val as i32,
             Ok(Aux::U16(val)) => val as i32,
@@ -378,6 +383,11 @@ pub fn process_region(
             Ok(Aux::I32(val)) => val,
             _ => 0,
         };
+
+        if collapse {
+            hap = 0;
+            ps = 0;
+        }
 
         *ps_sets.entry(ps).or_insert(0) += 1;
 
@@ -484,8 +494,14 @@ fn run_profile(args: ProfileArgs) {
 
         pb.inc(1);
 
-        let read_sub: (Region, Vec<ReadSegment>, f64, HashMap<i32, usize>) =
-            process_region(control_reads, args.flag, &r.0, args.min_mg, args.min_mapq);
+        let read_sub: (Region, Vec<ReadSegment>, f64, HashMap<i32, usize>) = process_region(
+            control_reads,
+            args.flag,
+            &r.0,
+            args.min_mg,
+            args.min_mapq,
+            args.collapse,
+        );
 
         let mut bad_region = false;
 
