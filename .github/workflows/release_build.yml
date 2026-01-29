@@ -34,12 +34,20 @@ jobs:
       - name: Make binary executable
         run: chmod +x target/x86_64-unknown-linux-musl/release/${{ env.BIN_NAME }}
 
-      - name: Upload binaries to release
+      - name: Package release bundle (binary + data)
+        shell: bash
+        run: |
+          mkdir -p dist/data
+          cp target/x86_64-unknown-linux-musl/release/${{ env.BIN_NAME }} dist/
+          cp data/GRCh38_owl_markers.bed.gz dist/data/
+          tar -C dist -czf owl-${{ env.RELEASE_VERSION }}-linux-x86_64.tar.gz .
+
+      - name: Upload tarball to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/x86_64-unknown-linux-musl/release/${{ env.BIN_NAME }}
-          asset_name: ${{ env.BIN_NAME }}
+          file: owl-${{ env.RELEASE_VERSION }}-linux-x86_64.tar.gz
+          asset_name: owl-${{ env.RELEASE_VERSION }}-linux-x86_64.tar.gz
           tag: ${{ env.TAG }}
           overwrite: true
           body: "For release notes, check the changelog in the repo README.md."
